@@ -1,0 +1,31 @@
+version: "2.1"
+
+orbs:
+  python: circleci/python@2.1.1
+jobs:
+  build_and_test:
+    docker:
+      - image: cimg/python:3.10
+    executor:
+      name: python/default
+      tag: "3.10"
+    steps:
+      - checkout
+      - python/install-packages:
+          pip-dependency-file: requirements.txt
+          pkg-manager: pip
+      - run:
+          name: Run tests
+          command: |
+            python -m pytest
+      - run:
+          name: Check linting
+          command: |
+            pip install pre-commit
+            pre-commit install
+            pre-commit run -a
+
+workflows:
+  main:
+    jobs:
+      - build_and_test
