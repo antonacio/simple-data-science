@@ -1,12 +1,20 @@
-[![Python](https://img.shields.io/badge/python-3.10-blue.svg)](https://github.com)
+[![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://github.com)
 
-# Title
+# Data Science Examples
 
-Description
+Useful examples for common Data Science use cases:
+1. Classification
+    - Binary
+    - Multiclass
+2. Regression
+3. Clustering
+4. Dimensionality Reduction
+    - PCA
+    - UMAP
 
-## Installation
+## Setup
 
-### Pre Commit Setup
+### Pre Commit
 
 ```bash
 pip install -r requirements.txt
