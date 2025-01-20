@@ -1,5 +1,5 @@
 # repository name
-REPO_NAME = "data-science"
+REPO_NAME = "simple-data-science"
 
 # random seed
 RANDOM_SEED = 42
