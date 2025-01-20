@@ -1,16 +1,13 @@
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://github.com)
 
-# Data Science Examples
+# Simple Data Science
 
-Useful examples for common Data Science use cases:
-1. Classification
-    - Binary
-    - Multiclass
-2. Regression
-3. Clustering
-4. Dimensionality Reduction
-    - PCA
-    - UMAP
+This repository provides simple and practical examples for common data science tasks using tabular data:
+1. Binary Classification
+2. Multiclass Classification
+3. Regression
+4. Clustering
+5. Dimensionality Reduction
 
 ## Setup
 
