@@ -14,7 +14,7 @@ This repository provides simple and practical examples for common data science t
 ### Pre Commit
 
 ```bash
-pip install -r requirements.txt
+pip install pre-commit
 pre-commit install
 ```
 
