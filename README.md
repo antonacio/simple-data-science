@@ -1,8 +1,8 @@
 [![Python](https://img.shields.io/badge/python-3.12-blue.svg)](https://github.com)
 
-# Data Science Examples
+# Simple Data Science
 
-This repository compiles simple yet useful examples for common Data Science use cases using tabular data:
+This repository provides simple and practical examples for common data science tasks using tabular data:
 1. Binary Classification
 2. Multiclass Classification
 3. Regression
