@@ -7,10 +7,6 @@
 - [ ] New feature (non-breaking change which adds functionality)
 - [ ] New documentation
 
-## How Has This Been Tested?
-
-- [x] `kedro run --pipeline <pipeline name>`
-
 ## ✅ Checks
 <!-- Make sure your pr passes the CI checks and do check the following fields as needed - -->
 - [ ] I have commented my code, particularly in hard-to-understand areas
