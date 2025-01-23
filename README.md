@@ -2,12 +2,12 @@
 
 # Simple Data Science
 
-This repository provides simple and practical examples for common data science tasks using tabular data:
-1. Binary Classification
-2. Multiclass Classification
-3. Regression
+This repository compiles simple and practical examples for common data science tasks using tabular data:
+1. (WIP) Binary Classification
+2. (WIP) Multiclass Classification
+3. (WIP) Regression
 4. Clustering
-5. Dimensionality Reduction
+5. (WIP) Dimensionality Reduction
 
 ## Setup
 
