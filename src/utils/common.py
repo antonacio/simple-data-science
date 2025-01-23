@@ -40,7 +40,8 @@ def plot_boxplot_by_class(
     share_y_axis: bool = False,
     y_lim: list[float | int] = None,
     scale_factor: float = 1.5,
-):
+) -> plt.Figure:
+
     n_classes = df[class_col].nunique()
 
     if plot_cols is None:
@@ -93,5 +94,39 @@ def plot_boxplot_by_class(
         fig.delaxes(ax=ax)
 
     fig.tight_layout()
+
+    return fig
+
+
+def plot_correlation_matrix(
+    df: pd.DataFrame,
+    title: str = "Features' Correlation",
+    method: str = "pearson",
+    fig_height: int = 8,
+    annot_fontsize: int = 10,
+) -> plt.Figure:
+    # Compute features' correlation
+    df_corr = df.corr(method=method)
+    # Generate a mask to onlyshow the bottom triangle
+    mask_corr = ~np.triu(np.ones_like(df_corr, dtype=bool)).T
+
+    with sns.axes_style("whitegrid"):
+        fig = plt.figure(figsize=(fig_height, fig_height))
+        plt.title(title)
+
+        # generate heatmap
+        sns.heatmap(
+            df_corr,
+            cmap="YlGnBu",
+            annot=True,
+            mask=mask_corr,
+            vmin=-1,
+            vmax=1,
+            square=True,
+            annot_kws=dict(fontsize=annot_fontsize),
+            fmt=".2f",
+        )
+        plt.grid(False)
+        plt.xticks(rotation=45, ha="right")
 
     return fig
