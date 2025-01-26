@@ -13,49 +13,6 @@ from sklearn.model_selection import train_test_split
 logger = logging.getLogger(__name__)
 
 
-def _get_high_vif_features(
-    X: pd.DataFrame, threshold: int, break_threshold: int = 1e6
-) -> list[str]:
-    features = list(X.columns)
-    max_len = max([len(f) for f in features])
-    high_vif_feats = []
-
-    logger.info(f"Computing the Variance Inflation Factor (VIF) for {len(features)} features...")
-
-    count = 1
-    max_vif = threshold
-    while max_vif >= threshold:
-        max_vif = 0
-        for i, feat in enumerate(features):
-            with warnings.catch_warnings(action="ignore"):
-                vif_feat = variance_inflation_factor(X[features].values, i)
-            if vif_feat > max_vif:
-                max_vif = vif_feat
-                max_vif_idx = i
-                max_vif_feat = feat
-                # break for loop before checking all features to save time
-                if vif_feat > break_threshold:
-                    break
-
-        if max_vif > threshold:
-            high_vif_feat = features.pop(max_vif_idx)
-            assert high_vif_feat == max_vif_feat
-            high_vif_feats.append(high_vif_feat)
-            logger.info(
-                f'{(str(count) + ".").rjust(4)} Removing feature: '
-                f'{(high_vif_feat + " ").ljust(max_len+2, ".")} VIF: {max_vif:,.2f}'
-            )
-            count += 1
-        else:
-            max_vif_col = features.pop(max_vif_idx)
-            logger.info(
-                f'  >> Stopping at feat: {(max_vif_col + " ").ljust(max_len+2, ".")} '
-                f"VIF: {max_vif:,.2f}  (threshold: {threshold:,})"
-            )
-
-    return high_vif_feats
-
-
 def _remove_features_with_l1_regularization(
     df_input: pd.DataFrame,
     target_col: str,
@@ -158,6 +115,49 @@ def _remove_features_with_l1_regularization(
     return l1_feats_to_drop
 
 
+def _get_high_vif_features(
+    X: pd.DataFrame, threshold: int, break_threshold: int = 1e6
+) -> list[str]:
+    features = list(X.columns)
+    max_len = max([len(f) for f in features])
+    high_vif_feats = []
+
+    logger.info(f"Computing the Variance Inflation Factor (VIF) for {len(features)} features...")
+
+    count = 1
+    max_vif = threshold
+    while max_vif >= threshold:
+        max_vif = 0
+        for i, feat in enumerate(features):
+            with warnings.catch_warnings(action="ignore"):
+                vif_feat = variance_inflation_factor(X[features].values, i)
+            if vif_feat > max_vif:
+                max_vif = vif_feat
+                max_vif_idx = i
+                max_vif_feat = feat
+                # break for loop before checking all features to save time
+                if vif_feat > break_threshold:
+                    break
+
+        if max_vif > threshold:
+            high_vif_feat = features.pop(max_vif_idx)
+            assert high_vif_feat == max_vif_feat
+            high_vif_feats.append(high_vif_feat)
+            logger.info(
+                f'{(str(count) + ".").rjust(4)} Removing feature: '
+                f'{(high_vif_feat + " ").ljust(max_len+2, ".")} VIF: {max_vif:,.2f}'
+            )
+            count += 1
+        else:
+            max_vif_col = features.pop(max_vif_idx)
+            logger.info(
+                f'  >> Stopping at feat: {(max_vif_col + " ").ljust(max_len+2, ".")} '
+                f"VIF: {max_vif:,.2f}  (threshold: {threshold:,})"
+            )
+
+    return high_vif_feats
+
+
 def _run_manual_filter(df: pd.DataFrame, target_col: str, params: dict) -> list[str]:
     orig_shp = df.shape
     cols_to_exclude = params["cols_to_exclude"]
@@ -225,6 +225,18 @@ def _run_correlation_filter(df: pd.DataFrame, target_col: str, params: dict) -> 
     return high_corr_cols
 
 
+def _run_l1_filter(df: pd.DataFrame, target_col: str, params: dict) -> list[str]:
+    orig_shp = df.shape
+    l1_feats_to_drop = _remove_features_with_l1_regularization(df, target_col, params)
+    logger.info(
+        f" - Removing {len(l1_feats_to_drop):,} "
+        f"({100 * len(l1_feats_to_drop) / orig_shp[1]:.1f}%)"
+        f" feature(s) with null coefficient after L1 regularization ...\n"
+    )
+
+    return l1_feats_to_drop
+
+
 def _run_vif_filter(df: pd.DataFrame, target_col: str, params: dict) -> list[str]:
     orig_shp = df.shape
 
@@ -239,18 +251,6 @@ def _run_vif_filter(df: pd.DataFrame, target_col: str, params: dict) -> list[str
     return high_vif_feats
 
 
-def _run_l1_filter(df: pd.DataFrame, target_col: str, params: dict) -> list[str]:
-    orig_shp = df.shape
-    l1_feats_to_drop = _remove_features_with_l1_regularization(df, target_col, params)
-    logger.info(
-        f" - Removing {len(l1_feats_to_drop):,} "
-        f"({100 * len(l1_feats_to_drop) / orig_shp[1]:.1f}%)"
-        f" feature(s) with null coefficient after L1 regularization ...\n"
-    )
-
-    return l1_feats_to_drop
-
-
 def run_feature_selection_steps(
     df_input: pd.DataFrame, target_col: str, fs_steps: dict
 ) -> tuple[list[str], pd.DataFrame]:
@@ -259,8 +259,8 @@ def run_feature_selection_steps(
         "manual": _run_manual_filter,
         "variance": _run_variance_filter,
         "correlation": _run_correlation_filter,
-        "vif": _run_vif_filter,
         "l1_regularization": _run_l1_filter,
+        "vif": _run_vif_filter,
     }
     # check if provided steps are valid
     for filter_name, filter_params in fs_steps.items():

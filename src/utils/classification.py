@@ -104,7 +104,58 @@ def plot_roc_curve(
         return fig
 
 
-def compute_metrics(
+def plot_target_rate(
+    y_test: pd.Series,
+    y_pred_proba: pd.Series,
+    title: str = "Target rate per group of predicted probability",
+) -> plt.Figure:
+
+    df_gh = pd.concat(
+        [
+            y_test.rename("true_label"),
+            y_pred_proba.rename("pred_proba"),
+            # quratiles
+            pd.qcut(
+                y_pred_proba.rank(method="first"),
+                q=4,
+                labels=[f"Q{i}" for i in range(1, 4 + 1)],
+                duplicates="raise",
+            ).rename("pred_quartile"),
+            # deciles
+            pd.qcut(
+                y_pred_proba.rank(method="first"),
+                q=10,
+                labels=[f"D{i}" for i in range(1, 10 + 1)],
+                duplicates="raise",
+            ).rename("pred_decile"),
+        ],
+        axis=1,
+    )
+
+    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 4))
+    fig.suptitle(title, y=1.025)
+
+    for ax, groupby_col, plot_title in zip(
+        axes,
+        ["pred_quartile", "pred_decile"],
+        ["Quartiles of model's predicted probability", "Deciles of model's predicted probability"],
+    ):
+        ax.set_title(plot_title)
+        ax = (
+            100
+            * (
+                df_gh.groupby(groupby_col, observed=True).agg(
+                    taxa_pgto_parcela=("true_label", "mean")
+                )
+            )
+        ).plot(kind="bar", legend=False, rot=0, ax=ax)
+        ax.yaxis.set_major_formatter(mticker.PercentFormatter())
+        ax.set_xlabel("")
+
+    return fig
+
+
+def compute_classification_metrics(
     y_true: pd.Series, y_pred: pd.Series, y_pred_proba: pd.Series
 ) -> dict[str, float]:
     metrics_dict = dict()
@@ -273,6 +324,64 @@ def plot_coefficients_significance(
         ),
     ]
     plt.legend(handles=legend_patches, framealpha=0.75)
+
+    return fig
+
+
+def plot_eval_metrics_xgb(eval_results: dict, eval_metrics: dict) -> plt.Figure:
+    n_epochs = len(eval_results["validation_0"][list(eval_metrics.keys())[0]])
+
+    fig, axes = plt.subplots(
+        nrows=1, ncols=len(eval_metrics.keys()), figsize=(7 * len(eval_metrics.keys()), 5)
+    )
+    for ax, (metric_code, metric) in zip(axes, eval_metrics.items()):
+        ax.plot(range(n_epochs), eval_results["validation_0"][metric_code], label="Train")
+        ax.plot(range(n_epochs), eval_results["validation_1"][metric_code], label="Test")
+        ax.set_title(metric)
+        ax.set_xlabel("Iterations")
+        ax.legend()
+    plt.suptitle("Convergence during XGBoost Model Training", y=1.05)
+
+    return fig
+
+
+def plot_shap_importance(
+    shap_values: np.ndarray, title: str = "SHAP Feature Importance", **kwargs: dict
+) -> plt.Figure:
+    fig, ax = plt.subplots(figsize=(5, max(shap_values.values.shape[1] / 2, 3)))
+    ax.set_title(title, pad=15)
+    shap.plots.bar(shap_values, ax=ax, **kwargs)
+
+    return fig
+
+
+def plot_shap_beeswarm(
+    shap_values: np.ndarray, title: str = "SHAP Summary Plot", **kwargs: dict
+) -> plt.Figure:
+    ax = shap.plots.beeswarm(
+        shap_values, show=False, plot_size=(6, max(shap_values.values.shape[1] / 2, 3)), **kwargs
+    )
+    ax.set_title(title, pad=15)
+    fig = plt.gcf()
+
+    return fig
+
+
+def plot_gain_metric_xgb(
+    xgb_estimator: Any,
+    X_test_: pd.DataFrame,
+    title: str = "XGBoost Feature Importance (Gain metric)",
+) -> plt.Figure:
+    df_xgb_gain = pd.DataFrame(
+        xgb_estimator.feature_importances_, index=X_test_.columns, columns=["Feature Gain"]
+    )
+    fig, ax = plt.subplots(figsize=(6, max(len(df_xgb_gain) / 2, 3)))
+    ax = df_xgb_gain.sort_values("Feature Gain", ascending=True).plot(
+        kind="barh", legend=False, ax=ax
+    )
+    ax.xaxis.grid(True)
+    ax.set_axisbelow(True)
+    plt.title(title)
 
     return fig
 
@@ -462,108 +571,5 @@ def plot_ks_table(ks_table: pd.DataFrame, figsize: tuple[int, int] = (7, 5)) -> 
     ax.set_title(f"KS Gain Plot (KS Statistic = {ks_max:.3f})")
     ax.legend()
     ax.grid(True)
-
-    return fig
-
-
-def plot_eval_metrics_xgb(eval_results, eval_metrics) -> plt.Figure:
-    n_epochs = len(eval_results["validation_0"][list(eval_metrics.keys())[0]])
-
-    fig, axes = plt.subplots(
-        nrows=1, ncols=len(eval_metrics.keys()), figsize=(7 * len(eval_metrics.keys()), 5)
-    )
-    for ax, (metric_code, metric) in zip(axes, eval_metrics.items()):
-        ax.plot(range(n_epochs), eval_results["validation_0"][metric_code], label="Train")
-        ax.plot(range(n_epochs), eval_results["validation_1"][metric_code], label="Test")
-        ax.set_title(metric)
-        ax.set_xlabel("Iterations")
-        ax.legend()
-    plt.suptitle("Convergence during Model Training", y=1.05)
-
-    return fig
-
-
-def plot_shap_importance(
-    shap_values: np.ndarray, title: str = "SHAP Feature Importance", **kwargs: dict
-) -> plt.Figure:
-    fig, ax = plt.subplots(figsize=(5, max(shap_values.values.shape[1] / 2, 4)))
-    ax.set_title(title, pad=15)
-    shap.plots.bar(shap_values, ax=ax, **kwargs)
-
-    return fig
-
-
-def plot_shap_beeswarm(
-    shap_values: np.ndarray, title: str = "SHAP Summary Plot", **kwargs: dict
-) -> plt.Figure:
-    ax = shap.plots.beeswarm(
-        shap_values, show=False, plot_size=(6, max(shap_values.values.shape[1] / 2, 4)), **kwargs
-    )
-    ax.set_title(title, pad=15)
-    fig = plt.gcf()
-
-    return fig
-
-
-def plot_gain_metric_xgb(
-    xgb_estimator: Any,
-    X_test_: pd.DataFrame,
-    title: str = "XGBoost Feature Importance (Gain metric)",
-) -> plt.Figure:
-    df_xgb_gain = pd.DataFrame(
-        xgb_estimator.feature_importances_, index=X_test_.columns, columns=["Feature Gain"]
-    )
-    fig, ax = plt.subplots(figsize=(8, max(len(df_xgb_gain) / 2, 3)))
-    ax = df_xgb_gain.sort_values("Feature Gain", ascending=True).plot(
-        kind="barh", legend=False, ax=ax
-    )
-    ax.xaxis.grid(True)
-    ax.set_axisbelow(True)
-    plt.title(title)
-
-    return fig
-
-
-def plot_target_rate(
-    y_test: pd.Series,
-    y_pred_proba: pd.Series,
-    title: str = "Target rate per group of predicted probability",
-) -> plt.Figure:
-
-    df_gh = pd.concat(
-        [
-            y_test.rename("true_label"),
-            y_pred_proba.rename("pred_proba"),
-            # quartis
-            pd.qcut(
-                y_pred_proba, q=4, labels=[f"Q{i}" for i in range(1, 4 + 1)], duplicates="raise"
-            ).rename("pred_quartile"),
-            # decis
-            pd.qcut(
-                y_pred_proba, q=10, labels=[f"D{i}" for i in range(1, 10 + 1)], duplicates="raise"
-            ).rename("pred_decile"),
-        ],
-        axis=1,
-    )
-
-    fig, axes = plt.subplots(nrows=1, ncols=2, figsize=(12, 4))
-    fig.suptitle(title, y=1.025)
-
-    for ax, groupby_col, plot_title in zip(
-        axes,
-        ["pred_quartile", "pred_decile"],
-        ["Quartiles of model's predicted probability", "Deciles of model's predicted probability"],
-    ):
-        ax.set_title(plot_title)
-        ax = (
-            100
-            * (
-                df_gh.groupby(groupby_col, observed=True).agg(
-                    taxa_pgto_parcela=("true_label", "mean")
-                )
-            )
-        ).plot(kind="bar", legend=False, rot=0, ax=ax)
-        ax.yaxis.set_major_formatter(mticker.PercentFormatter())
-        ax.set_xlabel("")
 
     return fig
