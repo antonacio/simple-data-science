@@ -119,12 +119,10 @@ def _remove_features_with_l1_regularization(
         y_pred = model.predict(X_test_std)
         eval_metric = eval_metric_fn(y_test, y_pred)
 
-        s_coefs = pd.Series(
-            data=np.mean(model.coef_, axis=0), index=model.feature_names_in_, name=i
-        )
-        coef_lst.append(s_coefs)
+        s_coef = pd.Series(data=np.mean(model.coef_, axis=0), index=model.feature_names_in_, name=i)
+        coef_lst.append(s_coef)
         metrics_dict[i] = dict(
-            search_val=search_val, n_zero_coefs=len(s_coefs[s_coefs == 0]), eval_metric=eval_metric
+            search_val=search_val, n_zero_coefs=len(s_coef[s_coef == 0]), eval_metric=eval_metric
         )
 
     df_coef = pd.concat(coef_lst, axis=1)
