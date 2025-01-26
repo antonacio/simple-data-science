@@ -1,7 +1,14 @@
 import logging
 import pandas as pd
+import numpy as np
 import warnings
 from statsmodels.stats.outliers_influence import variance_inflation_factor
+
+from sklearn.metrics import root_mean_squared_error, f1_score
+from sklearn.linear_model import Lasso
+from sklearn.svm import LinearSVC
+from sklearn.preprocessing import StandardScaler
+from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +54,110 @@ def _get_high_vif_features(
             )
 
     return high_vif_feats
+
+
+def _remove_features_with_l1_regularization(
+    df_input: pd.DataFrame,
+    target_col: str,
+    l1_params: dict,
+) -> list[str]:
+
+    # carregar parametros
+    problem = l1_params["problem"]
+    train_test_split_params = l1_params["train_test_split_params"]
+    logspace_search = l1_params["logspace_search"]
+    error_tolerance_pct = l1_params["error_tolerance_pct"]
+    min_feats_to_keep = l1_params["min_feats_to_keep"]
+    random_seed = l1_params["random_seed"]
+
+    # split data
+    X = df_input.drop(columns=[target_col])
+    y = df_input[target_col]
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        **train_test_split_params,
+        random_state=random_seed,
+    )
+
+    # Standardize X_train
+    stdscaler = StandardScaler()
+    X_train_std = pd.DataFrame(
+        stdscaler.fit_transform(X_train), columns=X.columns, index=X_train.index
+    )
+    X_test_std = pd.DataFrame(stdscaler.transform(X_test), columns=X.columns, index=X_test.index)
+
+    # define search space
+    logspace_values = np.logspace(**logspace_search)
+    coef_lst = []
+    metrics_dict = dict()
+
+    # define L1-based linear model ad its evaluation metric
+    if problem.lower() == "classification":
+        LinearModel = LinearSVC
+        model_params = dict(penalty="l1")
+        search_arg = "C"
+        eval_metric_fn = f1_score
+        eval_metric_greater_is_better = True
+    elif problem.lower() == "regression":
+        LinearModel = Lasso
+        model_params = dict()
+        search_arg = "alpha"
+        eval_metric_fn = root_mean_squared_error
+        eval_metric_greater_is_better = False
+    else:
+        raise ValueError(
+            "Argument 'problem' must be either 'classification' or 'regression'. "
+            f"Got {problem} instead."
+        )
+
+    for i, search_val in enumerate(logspace_values, start=1):
+        # Fit model and make predictions
+        model_params[search_arg] = search_val
+        model = LinearModel(**model_params, random_state=random_seed)
+        model.fit(X_train_std, y_train)
+        y_pred = model.predict(X_test_std)
+        eval_metric = eval_metric_fn(y_test, y_pred)
+
+        s_coefs = pd.Series(
+            data=np.mean(model.coef_, axis=0), index=model.feature_names_in_, name=i
+        )
+        coef_lst.append(s_coefs)
+        metrics_dict[i] = dict(
+            search_val=search_val, n_zero_coefs=len(s_coefs[s_coefs == 0]), eval_metric=eval_metric
+        )
+
+    df_coef = pd.concat(coef_lst, axis=1)
+    df_coef.columns.name = "iteration"
+    df_coef.index.name = "feature"
+    df_iter_metrics = pd.DataFrame.from_dict(metrics_dict, orient="index")
+    df_iter_metrics.index.name = "iteration"
+
+    # select the model that removes the most features while satisfying the following conditions:
+    #  - the selected model's metric score must be within the specified tolerance with respect to
+    #    the best score among all models
+    #  - the number of removed features must not exceed the specified number
+    if eval_metric_greater_is_better is True:
+        best_metric_score = df_iter_metrics["eval_metric"].max()
+        eval_metric_filter = df_iter_metrics["eval_metric"] > (
+            best_metric_score * (1 - error_tolerance_pct)
+        )
+    else:
+        best_metric_score = df_iter_metrics["eval_metric"].min()
+        eval_metric_filter = df_iter_metrics["eval_metric"] < (
+            best_metric_score * (1 + error_tolerance_pct)
+        )
+    min_feats_filter = (X.shape[1] - df_iter_metrics["n_zero_coefs"]) >= min_feats_to_keep
+    df_iter_best = df_iter_metrics[eval_metric_filter & min_feats_filter]
+
+    if len(df_iter_best) > 0:
+        best_iter = df_iter_best["n_zero_coefs"].idxmax()
+        s_coef_best_iter = df_coef[best_iter]
+        l1_feats_to_drop = s_coef_best_iter[s_coef_best_iter == 0].index.tolist()
+    else:
+        l1_feats_to_drop = []
+
+    return l1_feats_to_drop
 
 
 def _run_manual_filter(df: pd.DataFrame, target_col: str, params: dict) -> list[str]:
@@ -130,6 +241,18 @@ def _run_vif_filter(df: pd.DataFrame, target_col: str, params: dict) -> list[str
     return high_vif_feats
 
 
+def _run_l1_filter(df: pd.DataFrame, target_col: str, params: dict) -> list[str]:
+    orig_shp = df.shape
+    l1_feats_to_drop = _remove_features_with_l1_regularization(df, target_col, params)
+    logger.info(
+        f" - Removing {len(l1_feats_to_drop):,} "
+        f"({100 * len(l1_feats_to_drop) / orig_shp[1]:.1f}%)"
+        f" feature(s) with null coefficient after L1 regularization ...\n"
+    )
+
+    return l1_feats_to_drop
+
+
 def run_feature_selection_steps(
     df_input: pd.DataFrame, target_col: str, fs_steps: dict
 ) -> tuple[list[str], pd.DataFrame]:
@@ -139,6 +262,7 @@ def run_feature_selection_steps(
         "variance": _run_variance_filter,
         "correlation": _run_correlation_filter,
         "vif": _run_vif_filter,
+        "l1_regularization": _run_l1_filter,
     }
     # check if provided steps are valid
     for filter_name, filter_params in fs_steps.items():
