@@ -1,4 +1,3 @@
-import numpy as np
 import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
@@ -84,69 +83,3 @@ def plot_kmeans_search(
 
     return fig
 
-
-def plot_cluster_boxplots(
-    df: pd.DataFrame,
-    cluster_col: str,
-    plot_cols: list[str] = None,
-    plots_per_line: int = 2,
-    display_order: list[str] = None,
-    title: str = "Features by Cluster",
-    share_y_axis: bool = False,
-    y_lim: list[float | int] = None,
-    scale_factor: float = 1.5,
-):
-    n_clusters = df[cluster_col].nunique()
-
-    if plot_cols is None:
-        plot_cols = [col for col in df.columns if col != cluster_col]
-    num_lines = int(np.ceil(len(plot_cols) / plots_per_line))
-    fig, axes = plt.subplots(
-        nrows=num_lines,
-        ncols=plots_per_line,
-        figsize=(n_clusters * plots_per_line * scale_factor, num_lines * scale_factor * 2),
-        sharey=share_y_axis,
-    )
-    axes_flattend = axes.flatten()
-
-    plt.suptitle(title, y=1)
-    color_lst = sns.color_palette()
-
-    if display_order is None:
-        display_order = np.sort(df[cluster_col].unique()).tolist()
-
-    for ax, col in zip(axes_flattend, plot_cols):
-        sns.boxplot(
-            x=df[cluster_col],
-            y=df[col],
-            order=display_order,
-            ax=ax,
-            fliersize=2,
-            color=color_lst[0],
-            medianprops=dict(linewidth=2, alpha=1.0),
-            flierprops=dict(markerfacecolor="black", marker=".", alpha=0.33),
-            showmeans=True,
-            meanprops=dict(
-                marker=5,
-                markerfacecolor=color_lst[1],
-                markeredgecolor=color_lst[1],
-                markersize=10,
-            ),
-        )
-        ax.set_title(col)
-        ax.set_ylabel("")
-        ax.set_xlabel("")
-        if y_lim is not None:
-            y_range = max(y_lim) - min(y_lim)
-            pct_margin = 0.01
-            ax.set_ylim(
-                ymin=(min(y_lim) - y_range * pct_margin), ymax=(max(y_lim) + y_range * pct_margin)
-            )
-
-    # delete unused axes
-    for ax in axes_flattend[len(plot_cols) :]:
-        fig.delaxes(ax=ax)
-
-    fig.tight_layout()
-
-    return fig
