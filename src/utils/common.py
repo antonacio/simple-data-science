@@ -31,8 +31,9 @@ def set_plot_font_sizes() -> None:
 
 
 def plot_boxplot_by_class(
-    df: pd.DataFrame,
+    df_input: pd.DataFrame,
     class_col: str,
+    class_mapping: dict = None,
     plot_cols: list[str] = None,
     plots_per_line: int = 2,
     display_order: list[str] = None,
@@ -42,8 +43,11 @@ def plot_boxplot_by_class(
     scale_factor: float = 1.5,
 ) -> plt.Figure:
 
+    df = df_input.copy()
     n_classes = df[class_col].nunique()
 
+    if class_mapping is not None:
+        df[class_col] = df[class_col].map(class_mapping)
     if plot_cols is None:
         plot_cols = [col for col in df.columns if col != class_col]
     num_lines = int(np.ceil(len(plot_cols) / plots_per_line))

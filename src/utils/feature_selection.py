@@ -55,12 +55,14 @@ def _remove_features_with_l1_regularization(
         model_params = dict(penalty="l1")
         search_arg = "C"
         eval_metric_fn = f1_score
+        eval_metric_params = dict(average="weighted")
         eval_metric_greater_is_better = True
     elif problem.lower() == "regression":
         LinearModel = Lasso
         model_params = dict()
         search_arg = "alpha"
         eval_metric_fn = root_mean_squared_error
+        eval_metric_params = dict()
         eval_metric_greater_is_better = False
     else:
         raise ValueError(
@@ -74,7 +76,7 @@ def _remove_features_with_l1_regularization(
         model = LinearModel(**model_params, random_state=random_seed)
         model.fit(X_train_std, y_train)
         y_pred = model.predict(X_test_std)
-        eval_metric = eval_metric_fn(y_test, y_pred)
+        eval_metric = eval_metric_fn(y_test, y_pred, **eval_metric_params)
 
         s_coef = pd.Series(data=np.mean(model.coef_, axis=0), index=model.feature_names_in_, name=i)
         coef_lst.append(s_coef)
