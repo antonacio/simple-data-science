@@ -160,19 +160,19 @@ def compute_classification_metrics(
 ) -> dict[str, float]:
     metrics_dict = dict()
 
-    if len(np.unique(y_true)) > 1:
-        metrics_dict["KS"] = compute_ks_score(y_true=y_true, y_pred_proba=y_pred_proba)
-        roc_auc = roc_auc_score(y_true=y_true, y_score=y_pred_proba)
-        metrics_dict["ROC AUC"] = roc_auc
-        metrics_dict["GINI"] = 2 * roc_auc - 1
-    else:
-        metrics_dict["KS"] = np.nan
-        metrics_dict["ROC AUC"] = np.nan
-        metrics_dict["GINI"] = np.nan
     metrics_dict["Accuracy"] = accuracy_score(y_true=y_true, y_pred=y_pred)
     metrics_dict["Precision"] = precision_score(y_true=y_true, y_pred=y_pred)
     metrics_dict["Recall"] = recall_score(y_true=y_true, y_pred=y_pred)
     metrics_dict["F1 Score"] = f1_score(y_true=y_true, y_pred=y_pred)
+    if len(np.unique(y_true)) > 1:
+        roc_auc = roc_auc_score(y_true=y_true, y_score=y_pred_proba)
+        metrics_dict["ROC AUC"] = roc_auc
+        metrics_dict["GINI"] = 2 * roc_auc - 1
+        metrics_dict["KS Gain"] = compute_ks_gain_score(y_true=y_true, y_pred_proba=y_pred_proba)
+    else:
+        metrics_dict["ROC AUC"] = np.nan
+        metrics_dict["GINI"] = np.nan
+        metrics_dict["KS Gain"] = np.nan
 
     return metrics_dict
 
@@ -283,9 +283,7 @@ def plot_coefficients_significance(
 ) -> plt.Figure:
 
     fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.suptitle(
-        "Coefficients' Statistical Significance " f"({100*(1 - alpha):.0f}% Confidence Level)"
-    )
+    fig.suptitle(f"Coefficients' Significance ({100*(1 - alpha):.0f}% Confidence Level)")
 
     colors_dict = {"fail": "orange", "pass": "limegreen", "threshold": "crimson"}
     df_plot = df_coef.sort_values(by="Absolute Coefficients", ascending=True)
@@ -318,9 +316,11 @@ def plot_coefficients_significance(
     ax.set_axisbelow(True)
     legend_patches = [
         ax.get_legend_handles_labels()[0][0],  # confidence level line
-        mpatches.Patch(color=colors_dict["pass"], label="Coefficient is statistically significant"),
         mpatches.Patch(
-            color=colors_dict["fail"], label="Coefficient is not statistically significant"
+            color=colors_dict["pass"], label="Coefficient value is statistically significant"
+        ),
+        mpatches.Patch(
+            color=colors_dict["fail"], label="Coefficient value is not statistically significant"
         ),
     ]
     plt.legend(handles=legend_patches, framealpha=0.75)
@@ -498,7 +498,7 @@ def beautify_ks_table(ks_table: pd.DataFrame) -> pd.DataFrame:
     def flag(x):
         return "<--" if x == ks_table["diff"].max() else ""
 
-    ks_table["KS"] = ks_table["diff"].apply(flag)
+    ks_table["KS Gain"] = ks_table["diff"].apply(flag)
 
     for pct_col in ["positive_rate", "negative_rate", "cumpct_positives", "cumpct_negatives"]:
         ks_table[pct_col] = ks_table[pct_col].apply("{0:.2%}".format)
@@ -510,7 +510,7 @@ def beautify_ks_table(ks_table: pd.DataFrame) -> pd.DataFrame:
     return ks_table
 
 
-def compute_ks_score(
+def compute_ks_gain_score(
     y_true: pd.Series | np.ndarray,
     y_pred_proba: pd.Series | np.ndarray,
     n_bins: int = 10,
@@ -561,14 +561,14 @@ def plot_ks_table(ks_table: pd.DataFrame, figsize: tuple[int, int] = (7, 5)) -> 
         color=color_lst[2],
         linestyle="--",
         linewidth=1.5,
-        label=f"Max KS Statistic ({ks_max:.1f})",
+        label=f"Max KS Gain ({ks_max:.1f})",
     )
     ax.xaxis.set_major_formatter(mticker.PercentFormatter())
     ax.yaxis.set_major_formatter(mticker.PercentFormatter())
     # Customize the plot
     ax.set_xlabel("Predicted Probability")
     ax.set_ylabel("Cumulative Percentage")
-    ax.set_title(f"KS Gain Plot (KS Statistic = {ks_max:.3f})")
+    ax.set_title(f"KS Gain Plot (Max Gain = {ks_max:.3f})")
     ax.legend()
     ax.grid(True)
 

@@ -4,4 +4,3 @@ install-pre-commit:
 
 lint:
 	pre-commit run -a
-

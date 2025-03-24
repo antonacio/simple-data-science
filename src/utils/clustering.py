@@ -82,4 +82,3 @@ def plot_kmeans_search(
     fig.tight_layout()
 
     return fig
-
