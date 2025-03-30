@@ -6,7 +6,7 @@ import scipy
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from typing import Any
+from typing import Any, Union
 from matplotlib import patches as mpatches
 from matplotlib import ticker as mticker
 
@@ -96,6 +96,7 @@ def plot_roc_curve(
     ax.set_ylim([-margin, 100 + margin])
     ax.yaxis.set_major_formatter(mticker.PercentFormatter())
     ax.xaxis.set_major_formatter(mticker.PercentFormatter())
+    plt.close(fig)
 
     if return_optimal_thresh:
         return fig, optimal_thresh
@@ -151,10 +152,12 @@ def plot_target_rate(
         ax.yaxis.set_major_formatter(mticker.PercentFormatter())
         ax.set_xlabel("")
 
+    plt.close(fig)
+
     return fig
 
 
-def compute_classification_metrics(
+def compute_binary_classification_metrics(
     y_true: pd.Series, y_pred: pd.Series, y_pred_proba: pd.Series
 ) -> dict[str, float]:
     metrics_dict = dict()
@@ -172,6 +175,40 @@ def compute_classification_metrics(
         metrics_dict["ROC AUC"] = np.nan
         metrics_dict["GINI"] = np.nan
         metrics_dict["KS Gain"] = np.nan
+
+    return metrics_dict
+
+
+def compute_multiclass_classification_metrics(
+    y_true: pd.Series, y_pred: pd.Series, y_pred_proba: pd.Series
+) -> dict[str, float]:
+    metrics_dict = dict()
+
+    metrics_dict["Accuracy"] = accuracy_score(y_true=y_true, y_pred=y_pred)
+    for avg_method in ["macro", "weighted"]:
+        metrics_dict[f"Precision ({avg_method})"] = precision_score(
+            y_true=y_true, y_pred=y_pred, average=avg_method
+        )
+        metrics_dict[f"Recall ({avg_method})"] = recall_score(
+            y_true=y_true, y_pred=y_pred, average=avg_method
+        )
+        metrics_dict[f"F1 Score ({avg_method})"] = f1_score(
+            y_true=y_true, y_pred=y_pred, average=avg_method
+        )
+
+        for multiclass_method, multiclass_label in {
+            "ovr": "One-vs-Rest",
+            "ovo": "One-vs-One",
+        }.items():
+            if len(np.unique(y_true)) > 1:
+                metrics_dict[f"ROC AUC {multiclass_label} ({avg_method})"] = roc_auc_score(
+                    y_true=y_true,
+                    y_score=y_pred_proba,
+                    average=avg_method,
+                    multi_class=multiclass_method,
+                )
+            else:
+                metrics_dict[f"ROC AUC {multiclass_label} ({avg_method})"] = np.nan
 
     return metrics_dict
 
@@ -276,6 +313,7 @@ def plot_coefficients_values(
         ax.get_legend_handles_labels()[0][0],  # confidence interval
     ]
     plt.legend(handles=legend_patches, loc="lower right", framealpha=1)
+    plt.close(fig)
 
     return fig
 
@@ -329,6 +367,7 @@ def plot_coefficients_significance(
         ),
     ]
     plt.legend(handles=legend_patches, framealpha=0.75)
+    plt.close(fig)
 
     return fig
 
@@ -346,6 +385,7 @@ def plot_eval_metrics_xgb(eval_results: dict, eval_metrics: dict) -> plt.Figure:
         ax.set_xlabel("Iterations")
         ax.legend()
     plt.suptitle("Convergence during XGBoost Model Training", y=1.05)
+    plt.close(fig)
 
     return fig
 
@@ -355,7 +395,8 @@ def plot_shap_importance(
 ) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(5, max(shap_values.values.shape[1] / 2, 3)))
     ax.set_title(title, pad=15)
-    shap.plots.bar(shap_values, ax=ax, **kwargs)
+    shap.plots.bar(shap_values, show=False, ax=ax, **kwargs)
+    plt.close(fig)
 
     return fig
 
@@ -368,12 +409,13 @@ def plot_shap_beeswarm(
     )
     ax.set_title(title, pad=15)
     fig = plt.gcf()
+    plt.close(fig)
 
     return fig
 
 
 def plot_gain_metric_xgb(
-    xgb_estimator: Any,
+    xgb_estimator: Union["XGBClassifier", "XGBRegressor"],  # noqa: F821
     X_test_: pd.DataFrame,
     title: str = "XGBoost Feature Importance (Gain metric)",
 ) -> plt.Figure:
@@ -387,6 +429,7 @@ def plot_gain_metric_xgb(
     ax.xaxis.grid(True)
     ax.set_axisbelow(True)
     plt.title(title)
+    plt.close(fig)
 
     return fig
 
@@ -442,6 +485,7 @@ def plot_confusion_matrix(
     plt.tight_layout()
     plt.ylabel("True label", labelpad=10)
     plt.xlabel("Predicted label", labelpad=15)
+    plt.close(fig)
 
     return fig
 
@@ -576,5 +620,7 @@ def plot_ks_table(ks_table: pd.DataFrame, figsize: tuple[int, int] = (7, 5)) -> 
     ax.set_title(f"KS Gain Plot (Max Gain = {ks_max:.3f})")
     ax.legend()
     ax.grid(True)
+
+    plt.close(fig)
 
     return fig

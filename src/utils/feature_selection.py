@@ -292,7 +292,8 @@ def run_feature_selection_steps(
     selected_feats = X.columns.tolist()
     logger.info(
         f"--> Completed Feature Selection with {len(selected_feats):,} selected features "
-        f"({100 * len(selected_feats) / orig_shp[1]:.1f}% of the original {orig_shp[1]} features)"
+        f"({100 * len(selected_feats) / orig_shp[1]:.1f}% of the original {orig_shp[1]} features): "
+        f"{selected_feats}"
     )
     df_fs.loc[selected_feats, ["filter", "step"]] = ("Selected feature", -1)
     df_fs.loc[target_col, ["filter", "step"]] = ("Target Column", -1)
