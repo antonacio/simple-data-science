@@ -20,7 +20,6 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
 )
-from sklearn.linear_model import LogisticRegression, LinearRegression
 
 from .common import convert_to_integer
 
@@ -54,7 +53,7 @@ def plot_roc_curve(
     y_pred_proba: pd.Series,
     title: str = "Receiver Operating Characteristic",
     figsize: tuple[int, int] = (8, 5),
-    ret_optimal_thresh: bool = False,
+    return_optimal_thresh: bool = False,
 ) -> plt.Figure | tuple[plt.Figure, np.float64]:
     fpr, tpr, thresholds = roc_curve(y_true, y_pred_proba)
     optimal_thresh = thresholds[np.argmax(tpr - fpr)]
@@ -82,7 +81,7 @@ def plot_roc_curve(
     )
     plt.ylabel("True Positive Rate")
     plt.xlabel("False Positive Rate")
-    if ret_optimal_thresh:
+    if return_optimal_thresh:
         plt.vlines(
             x=100 * optimal_thresh,
             ymin=-margin,
@@ -98,7 +97,7 @@ def plot_roc_curve(
     ax.yaxis.set_major_formatter(mticker.PercentFormatter())
     ax.xaxis.set_major_formatter(mticker.PercentFormatter())
 
-    if ret_optimal_thresh:
+    if return_optimal_thresh:
         return fig, optimal_thresh
     else:
         return fig
@@ -114,7 +113,7 @@ def plot_target_rate(
         [
             y_test.rename("true_label"),
             y_pred_proba.rename("pred_proba"),
-            # quratiles
+            # quartiles
             pd.qcut(
                 y_pred_proba.rank(method="first"),
                 q=4,
@@ -177,23 +176,24 @@ def compute_classification_metrics(
     return metrics_dict
 
 
-def _get_logit_stderror_pvalues(
-    model: LogisticRegression, x: pd.DataFrame | np.ndarray
+def _compute_logit_stderror_pvalues(
+    coefficients: np.ndarray,
+    intercept: float,
+    X_train: pd.DataFrame,
+    y_pred_proba_train: pd.Series,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Calculate z-scores for scikit-learn LogisticRegression.
-    This function uses asymtptics for maximum likelihood estimates.
+    """Calculate z-scores for a Logistic Regression and returns the
+    standard errors and p-values for each of the model's coefficients.
+    Uses asymtotic approximation for maximum likelihood estimates.
 
     Source: https://stackoverflow.com/a/47079198
-
-    parameters:
-        model: fitted sklearn.linear_model.LogisticRegression with intercept and large C
-        x:     matrix on which the model was fit
     """
-    p = model.predict_proba(x)
+    p = np.vstack([y_pred_proba_train.values, (1 - y_pred_proba_train.values)]).T
     n = len(p)
-    m = len(model.coef_[0]) + 1
-    coefs = np.concatenate([model.intercept_, model.coef_[0]])
-    x_full = np.matrix(np.insert(np.array(x), 0, 1, axis=1))
+    m = len(coefficients) + 1
+    coefs = np.concatenate([[intercept], coefficients])
+    # add a constant column of ones to the training data
+    x_full = np.matrix(np.insert(X_train.values, 0, 1, axis=1))
     ans = np.zeros((m, m))
     for i in range(n):
         ans = ans + np.dot(np.transpose(x_full[i, :]), x_full[i, :]) * p[i, 1] * p[i, 0]
@@ -202,30 +202,33 @@ def _get_logit_stderror_pvalues(
     t = coefs / se
     p_values = (1 - scipy.stats.norm.cdf(abs(t))) * 2
 
-    return se, p_values
+    return se[1:], p_values[1:]  # [1:] to skip the added constant
 
 
-def build_coefficients_table(
-    model: LogisticRegression | LinearRegression,
-    X_train_std: pd.DataFrame,
+def build_logit_coefficients_table(
+    coefficients: np.ndarray,
+    intercept: float,
+    X_train: pd.DataFrame,
+    y_pred_proba_train: pd.Series,
 ) -> pd.DataFrame:
-    if not isinstance(model, (LogisticRegression, LinearRegression)):
-        raise ValueError(
-            "Model must be either sklearn's Linear Regression or Logistic Regression. "
-            f"Got {type(model)} instead."
-        )
 
-    df_coef = pd.DataFrame(
-        np.transpose(model.coef_), columns=["Coefficients"], index=model.feature_names_in_
+    # compute coefficients' Standard Error and p-values
+    stderr, pvalues = _compute_logit_stderror_pvalues(
+        coefficients=coefficients,
+        intercept=intercept,
+        X_train=X_train,
+        y_pred_proba_train=y_pred_proba_train,
     )
-    df_coef["Absolute Coefficients"] = df_coef["Coefficients"].abs()
-    # compute Standard Error and coefficients' p-values
-    stderr, pvalues = _get_logit_stderror_pvalues(model, X_train_std)
-    df_coef["Standard Error"] = stderr[1:]  # [1:] to skip constant
-    df_coef["95% CI"] = df_coef["Standard Error"] * 1.96
-    df_coef["p-values"] = pvalues[1:]  # [1:] to skip constant
-
-    df_coef = df_coef.sort_values(by="Absolute Coefficients", ascending=False)
+    df_coef = pd.DataFrame(
+        data={
+            "Coefficients": coefficients,
+            "Absolute Coefficients": np.abs(coefficients),
+            "Standard Error": stderr,
+            "95% CI": stderr * 1.96,
+            "p-values": pvalues,
+        },
+        index=X_train.columns.tolist(),
+    ).sort_values(by="Absolute Coefficients", ascending=False)
 
     return df_coef
 
@@ -236,10 +239,11 @@ def _get_order_of_magnitude(number: float | int) -> float:
 
 def plot_coefficients_values(
     df_coef: pd.DataFrame,
+    title: str = "Coefficient Values with 95% CI (±1.96 Std Error)",
 ) -> plt.Figure:
 
     fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.suptitle("Coefficient Values with 95% CI (±1.96 Std Error)")
+    fig.suptitle(title)
     max_coeff, max_ci = df_coef[["Absolute Coefficients", "95% CI"]].max().tolist()
 
     if _get_order_of_magnitude(max_ci) > _get_order_of_magnitude(max_coeff):
@@ -280,10 +284,11 @@ def plot_coefficients_significance(
     df_coef: pd.DataFrame,
     alpha: float = 0.05,
     log_scale: bool = False,
+    title: str = "Coefficients' Significance",
 ) -> plt.Figure:
 
     fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.suptitle(f"Coefficients' Significance ({100*(1 - alpha):.0f}% Confidence Level)")
+    fig.suptitle(title + f" ({100*(1 - alpha):.0f}% Confidence Level)")
 
     colors_dict = {"fail": "orange", "pass": "limegreen", "threshold": "crimson"}
     df_plot = df_coef.sort_values(by="Absolute Coefficients", ascending=True)
@@ -445,7 +450,7 @@ def build_ks_table(
     y_true: pd.Series | np.ndarray,
     y_pred_proba: pd.Series | np.ndarray,
     n_bins: int = 10,
-    ret_ks: bool = False,
+    return_ks: bool = False,
 ) -> pd.DataFrame | tuple[pd.DataFrame, np.float64]:
 
     if isinstance(y_true, pd.Series):
@@ -486,7 +491,7 @@ def build_ks_table(
 
     ks = ks_table["diff"].max()
 
-    if ret_ks:
+    if return_ks:
         return ks_table, ks
     else:
         return ks_table
@@ -516,7 +521,7 @@ def compute_ks_gain_score(
     n_bins: int = 10,
 ) -> np.float64:
 
-    _, ks = build_ks_table(y_true=y_true, y_pred_proba=y_pred_proba, n_bins=n_bins, ret_ks=True)
+    _, ks = build_ks_table(y_true=y_true, y_pred_proba=y_pred_proba, n_bins=n_bins, return_ks=True)
 
     return ks
 
