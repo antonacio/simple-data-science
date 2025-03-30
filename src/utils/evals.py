@@ -6,7 +6,7 @@ import scipy
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from typing import Any
+from typing import Any, Union
 from matplotlib import patches as mpatches
 from matplotlib import ticker as mticker
 
@@ -20,7 +20,6 @@ from sklearn.metrics import (
     f1_score,
     confusion_matrix,
 )
-from sklearn.linear_model import LogisticRegression, LinearRegression
 
 from .common import convert_to_integer
 
@@ -54,7 +53,7 @@ def plot_roc_curve(
     y_pred_proba: pd.Series,
     title: str = "Receiver Operating Characteristic",
     figsize: tuple[int, int] = (8, 5),
-    ret_optimal_thresh: bool = False,
+    return_optimal_thresh: bool = False,
 ) -> plt.Figure | tuple[plt.Figure, np.float64]:
     fpr, tpr, thresholds = roc_curve(y_true, y_pred_proba)
     optimal_thresh = thresholds[np.argmax(tpr - fpr)]
@@ -82,7 +81,7 @@ def plot_roc_curve(
     )
     plt.ylabel("True Positive Rate")
     plt.xlabel("False Positive Rate")
-    if ret_optimal_thresh:
+    if return_optimal_thresh:
         plt.vlines(
             x=100 * optimal_thresh,
             ymin=-margin,
@@ -97,8 +96,9 @@ def plot_roc_curve(
     ax.set_ylim([-margin, 100 + margin])
     ax.yaxis.set_major_formatter(mticker.PercentFormatter())
     ax.xaxis.set_major_formatter(mticker.PercentFormatter())
+    plt.close(fig)
 
-    if ret_optimal_thresh:
+    if return_optimal_thresh:
         return fig, optimal_thresh
     else:
         return fig
@@ -114,7 +114,7 @@ def plot_target_rate(
         [
             y_test.rename("true_label"),
             y_pred_proba.rename("pred_proba"),
-            # quratiles
+            # quartiles
             pd.qcut(
                 y_pred_proba.rank(method="first"),
                 q=4,
@@ -152,48 +152,85 @@ def plot_target_rate(
         ax.yaxis.set_major_formatter(mticker.PercentFormatter())
         ax.set_xlabel("")
 
+    plt.close(fig)
+
     return fig
 
 
-def compute_classification_metrics(
+def compute_binary_classification_metrics(
     y_true: pd.Series, y_pred: pd.Series, y_pred_proba: pd.Series
 ) -> dict[str, float]:
     metrics_dict = dict()
 
-    if len(np.unique(y_true)) > 1:
-        metrics_dict["KS"] = compute_ks_score(y_true=y_true, y_pred_proba=y_pred_proba)
-        roc_auc = roc_auc_score(y_true=y_true, y_score=y_pred_proba)
-        metrics_dict["ROC AUC"] = roc_auc
-        metrics_dict["GINI"] = 2 * roc_auc - 1
-    else:
-        metrics_dict["KS"] = np.nan
-        metrics_dict["ROC AUC"] = np.nan
-        metrics_dict["GINI"] = np.nan
     metrics_dict["Accuracy"] = accuracy_score(y_true=y_true, y_pred=y_pred)
     metrics_dict["Precision"] = precision_score(y_true=y_true, y_pred=y_pred)
     metrics_dict["Recall"] = recall_score(y_true=y_true, y_pred=y_pred)
     metrics_dict["F1 Score"] = f1_score(y_true=y_true, y_pred=y_pred)
+    if len(np.unique(y_true)) > 1:
+        roc_auc = roc_auc_score(y_true=y_true, y_score=y_pred_proba)
+        metrics_dict["ROC AUC"] = roc_auc
+        metrics_dict["GINI"] = 2 * roc_auc - 1
+        metrics_dict["KS Gain"] = compute_ks_gain_score(y_true=y_true, y_pred_proba=y_pred_proba)
+    else:
+        metrics_dict["ROC AUC"] = np.nan
+        metrics_dict["GINI"] = np.nan
+        metrics_dict["KS Gain"] = np.nan
 
     return metrics_dict
 
 
-def _get_logit_stderror_pvalues(
-    model: LogisticRegression, x: pd.DataFrame | np.ndarray
+def compute_multiclass_classification_metrics(
+    y_true: pd.Series, y_pred: pd.Series, y_pred_proba: pd.Series
+) -> dict[str, float]:
+    metrics_dict = dict()
+
+    metrics_dict["Accuracy"] = accuracy_score(y_true=y_true, y_pred=y_pred)
+    for avg_method in ["macro", "weighted"]:
+        metrics_dict[f"Precision ({avg_method})"] = precision_score(
+            y_true=y_true, y_pred=y_pred, average=avg_method
+        )
+        metrics_dict[f"Recall ({avg_method})"] = recall_score(
+            y_true=y_true, y_pred=y_pred, average=avg_method
+        )
+        metrics_dict[f"F1 Score ({avg_method})"] = f1_score(
+            y_true=y_true, y_pred=y_pred, average=avg_method
+        )
+
+        for multiclass_method, multiclass_label in {
+            "ovr": "One-vs-Rest",
+            "ovo": "One-vs-One",
+        }.items():
+            if len(np.unique(y_true)) > 1:
+                metrics_dict[f"ROC AUC {multiclass_label} ({avg_method})"] = roc_auc_score(
+                    y_true=y_true,
+                    y_score=y_pred_proba,
+                    average=avg_method,
+                    multi_class=multiclass_method,
+                )
+            else:
+                metrics_dict[f"ROC AUC {multiclass_label} ({avg_method})"] = np.nan
+
+    return metrics_dict
+
+
+def _compute_logit_stderror_pvalues(
+    coefficients: np.ndarray,
+    intercept: float,
+    X_train: pd.DataFrame,
+    y_pred_proba_train: pd.Series,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Calculate z-scores for scikit-learn LogisticRegression.
-    This function uses asymtptics for maximum likelihood estimates.
+    """Calculate z-scores for a Logistic Regression and returns the
+    standard errors and p-values for each of the model's coefficients.
+    Uses asymtotic approximation for maximum likelihood estimates.
 
     Source: https://stackoverflow.com/a/47079198
-
-    parameters:
-        model: fitted sklearn.linear_model.LogisticRegression with intercept and large C
-        x:     matrix on which the model was fit
     """
-    p = model.predict_proba(x)
+    p = np.vstack([y_pred_proba_train.values, (1 - y_pred_proba_train.values)]).T
     n = len(p)
-    m = len(model.coef_[0]) + 1
-    coefs = np.concatenate([model.intercept_, model.coef_[0]])
-    x_full = np.matrix(np.insert(np.array(x), 0, 1, axis=1))
+    m = len(coefficients) + 1
+    coefs = np.concatenate([[intercept], coefficients])
+    # add a constant column of ones to the training data
+    x_full = np.matrix(np.insert(X_train.values, 0, 1, axis=1))
     ans = np.zeros((m, m))
     for i in range(n):
         ans = ans + np.dot(np.transpose(x_full[i, :]), x_full[i, :]) * p[i, 1] * p[i, 0]
@@ -202,30 +239,33 @@ def _get_logit_stderror_pvalues(
     t = coefs / se
     p_values = (1 - scipy.stats.norm.cdf(abs(t))) * 2
 
-    return se, p_values
+    return se[1:], p_values[1:]  # [1:] to skip the added constant
 
 
-def build_coefficients_table(
-    model: LogisticRegression | LinearRegression,
-    X_train_std: pd.DataFrame,
+def build_logit_coefficients_table(
+    coefficients: np.ndarray,
+    intercept: float,
+    X_train: pd.DataFrame,
+    y_pred_proba_train: pd.Series,
 ) -> pd.DataFrame:
-    if not isinstance(model, (LogisticRegression, LinearRegression)):
-        raise ValueError(
-            "Model must be either sklearn's Linear Regression or Logistic Regression. "
-            f"Got {type(model)} instead."
-        )
 
-    df_coef = pd.DataFrame(
-        np.transpose(model.coef_), columns=["Coefficients"], index=model.feature_names_in_
+    # compute coefficients' Standard Error and p-values
+    stderr, pvalues = _compute_logit_stderror_pvalues(
+        coefficients=coefficients,
+        intercept=intercept,
+        X_train=X_train,
+        y_pred_proba_train=y_pred_proba_train,
     )
-    df_coef["Absolute Coefficients"] = df_coef["Coefficients"].abs()
-    # compute Standard Error and coefficients' p-values
-    stderr, pvalues = _get_logit_stderror_pvalues(model, X_train_std)
-    df_coef["Standard Error"] = stderr[1:]  # [1:] to skip constant
-    df_coef["95% CI"] = df_coef["Standard Error"] * 1.96
-    df_coef["p-values"] = pvalues[1:]  # [1:] to skip constant
-
-    df_coef = df_coef.sort_values(by="Absolute Coefficients", ascending=False)
+    df_coef = pd.DataFrame(
+        data={
+            "Coefficients": coefficients,
+            "Absolute Coefficients": np.abs(coefficients),
+            "Standard Error": stderr,
+            "95% CI": stderr * 1.96,
+            "p-values": pvalues,
+        },
+        index=X_train.columns.tolist(),
+    ).sort_values(by="Absolute Coefficients", ascending=False)
 
     return df_coef
 
@@ -236,10 +276,11 @@ def _get_order_of_magnitude(number: float | int) -> float:
 
 def plot_coefficients_values(
     df_coef: pd.DataFrame,
+    title: str = "Coefficient Values with 95% CI (±1.96 Std Error)",
 ) -> plt.Figure:
 
     fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.suptitle("Coefficient Values with 95% CI (±1.96 Std Error)")
+    fig.suptitle(title)
     max_coeff, max_ci = df_coef[["Absolute Coefficients", "95% CI"]].max().tolist()
 
     if _get_order_of_magnitude(max_ci) > _get_order_of_magnitude(max_coeff):
@@ -272,6 +313,7 @@ def plot_coefficients_values(
         ax.get_legend_handles_labels()[0][0],  # confidence interval
     ]
     plt.legend(handles=legend_patches, loc="lower right", framealpha=1)
+    plt.close(fig)
 
     return fig
 
@@ -280,12 +322,11 @@ def plot_coefficients_significance(
     df_coef: pd.DataFrame,
     alpha: float = 0.05,
     log_scale: bool = False,
+    title: str = "Coefficients' Significance",
 ) -> plt.Figure:
 
     fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.suptitle(
-        "Coefficients' Statistical Significance " f"({100*(1 - alpha):.0f}% Confidence Level)"
-    )
+    fig.suptitle(title + f" ({100*(1 - alpha):.0f}% Confidence Level)")
 
     colors_dict = {"fail": "orange", "pass": "limegreen", "threshold": "crimson"}
     df_plot = df_coef.sort_values(by="Absolute Coefficients", ascending=True)
@@ -318,12 +359,15 @@ def plot_coefficients_significance(
     ax.set_axisbelow(True)
     legend_patches = [
         ax.get_legend_handles_labels()[0][0],  # confidence level line
-        mpatches.Patch(color=colors_dict["pass"], label="Coefficient is statistically significant"),
         mpatches.Patch(
-            color=colors_dict["fail"], label="Coefficient is not statistically significant"
+            color=colors_dict["pass"], label="Coefficient value is statistically significant"
+        ),
+        mpatches.Patch(
+            color=colors_dict["fail"], label="Coefficient value is not statistically significant"
         ),
     ]
     plt.legend(handles=legend_patches, framealpha=0.75)
+    plt.close(fig)
 
     return fig
 
@@ -341,6 +385,7 @@ def plot_eval_metrics_xgb(eval_results: dict, eval_metrics: dict) -> plt.Figure:
         ax.set_xlabel("Iterations")
         ax.legend()
     plt.suptitle("Convergence during XGBoost Model Training", y=1.05)
+    plt.close(fig)
 
     return fig
 
@@ -350,7 +395,8 @@ def plot_shap_importance(
 ) -> plt.Figure:
     fig, ax = plt.subplots(figsize=(5, max(shap_values.values.shape[1] / 2, 3)))
     ax.set_title(title, pad=15)
-    shap.plots.bar(shap_values, ax=ax, **kwargs)
+    shap.plots.bar(shap_values, show=False, ax=ax, **kwargs)
+    plt.close(fig)
 
     return fig
 
@@ -363,12 +409,13 @@ def plot_shap_beeswarm(
     )
     ax.set_title(title, pad=15)
     fig = plt.gcf()
+    plt.close(fig)
 
     return fig
 
 
 def plot_gain_metric_xgb(
-    xgb_estimator: Any,
+    xgb_estimator: Union["XGBClassifier", "XGBRegressor"],  # noqa: F821
     X_test_: pd.DataFrame,
     title: str = "XGBoost Feature Importance (Gain metric)",
 ) -> plt.Figure:
@@ -382,6 +429,7 @@ def plot_gain_metric_xgb(
     ax.xaxis.grid(True)
     ax.set_axisbelow(True)
     plt.title(title)
+    plt.close(fig)
 
     return fig
 
@@ -437,6 +485,7 @@ def plot_confusion_matrix(
     plt.tight_layout()
     plt.ylabel("True label", labelpad=10)
     plt.xlabel("Predicted label", labelpad=15)
+    plt.close(fig)
 
     return fig
 
@@ -445,7 +494,7 @@ def build_ks_table(
     y_true: pd.Series | np.ndarray,
     y_pred_proba: pd.Series | np.ndarray,
     n_bins: int = 10,
-    ret_ks: bool = False,
+    return_ks: bool = False,
 ) -> pd.DataFrame | tuple[pd.DataFrame, np.float64]:
 
     if isinstance(y_true, pd.Series):
@@ -486,7 +535,7 @@ def build_ks_table(
 
     ks = ks_table["diff"].max()
 
-    if ret_ks:
+    if return_ks:
         return ks_table, ks
     else:
         return ks_table
@@ -498,7 +547,7 @@ def beautify_ks_table(ks_table: pd.DataFrame) -> pd.DataFrame:
     def flag(x):
         return "<--" if x == ks_table["diff"].max() else ""
 
-    ks_table["KS"] = ks_table["diff"].apply(flag)
+    ks_table["KS Gain"] = ks_table["diff"].apply(flag)
 
     for pct_col in ["positive_rate", "negative_rate", "cumpct_positives", "cumpct_negatives"]:
         ks_table[pct_col] = ks_table[pct_col].apply("{0:.2%}".format)
@@ -510,13 +559,13 @@ def beautify_ks_table(ks_table: pd.DataFrame) -> pd.DataFrame:
     return ks_table
 
 
-def compute_ks_score(
+def compute_ks_gain_score(
     y_true: pd.Series | np.ndarray,
     y_pred_proba: pd.Series | np.ndarray,
     n_bins: int = 10,
 ) -> np.float64:
 
-    _, ks = build_ks_table(y_true=y_true, y_pred_proba=y_pred_proba, n_bins=n_bins, ret_ks=True)
+    _, ks = build_ks_table(y_true=y_true, y_pred_proba=y_pred_proba, n_bins=n_bins, return_ks=True)
 
     return ks
 
@@ -561,15 +610,17 @@ def plot_ks_table(ks_table: pd.DataFrame, figsize: tuple[int, int] = (7, 5)) -> 
         color=color_lst[2],
         linestyle="--",
         linewidth=1.5,
-        label=f"Max KS Statistic ({ks_max:.1f})",
+        label=f"Max KS Gain ({ks_max:.1f})",
     )
     ax.xaxis.set_major_formatter(mticker.PercentFormatter())
     ax.yaxis.set_major_formatter(mticker.PercentFormatter())
     # Customize the plot
     ax.set_xlabel("Predicted Probability")
     ax.set_ylabel("Cumulative Percentage")
-    ax.set_title(f"KS Gain Plot (KS Statistic = {ks_max:.3f})")
+    ax.set_title(f"KS Gain Plot (Max Gain = {ks_max:.3f})")
     ax.legend()
     ax.grid(True)
+
+    plt.close(fig)
 
     return fig

@@ -80,6 +80,6 @@ def plot_kmeans_search(
     axes[1].set_xlabel("Number of clusters")
 
     fig.tight_layout()
+    plt.close(fig)
 
     return fig
-

@@ -2,8 +2,9 @@ import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
+import matplotlib as mpl
 import matplotlib.pyplot as plt
-from .constants import REPO_NAME, SMALL_FONTSIZE, MEDIUM_FONTSIZE, BIG_FONTSIZE
+from .constants import REPO_NAME, SMALL_FONTSIZE, MEDIUM_FONTSIZE, BIG_FONTSIZE, FIGURE_DPI
 
 
 def get_repo_root_path() -> str:
@@ -20,7 +21,7 @@ def convert_to_integer(s: pd.Series) -> pd.Series:
     return pd.to_numeric(s, downcast="integer", errors="raise")
 
 
-def set_plot_font_sizes() -> None:
+def _set_plot_font_sizes() -> None:
     plt.rc("font", size=SMALL_FONTSIZE)  # default font size
     plt.rc("figure", titlesize=BIG_FONTSIZE)  # figure title
     plt.rc("legend", fontsize=SMALL_FONTSIZE)  # legend
@@ -30,9 +31,19 @@ def set_plot_font_sizes() -> None:
     plt.rc("ytick", labelsize=SMALL_FONTSIZE)  # y tick labels
 
 
+def _set_figure_dpi() -> None:
+    mpl.rcParams["figure.dpi"] = FIGURE_DPI
+
+
+def set_plotting_config() -> None:
+    _set_plot_font_sizes()
+    _set_figure_dpi()
+
+
 def plot_boxplot_by_class(
-    df: pd.DataFrame,
+    df_input: pd.DataFrame,
     class_col: str,
+    class_mapping: dict = None,
     plot_cols: list[str] = None,
     plots_per_line: int = 2,
     display_order: list[str] = None,
@@ -42,8 +53,11 @@ def plot_boxplot_by_class(
     scale_factor: float = 1.5,
 ) -> plt.Figure:
 
+    df = df_input.copy()
     n_classes = df[class_col].nunique()
 
+    if class_mapping is not None:
+        df[class_col] = df[class_col].map(class_mapping)
     if plot_cols is None:
         plot_cols = [col for col in df.columns if col != class_col]
     num_lines = int(np.ceil(len(plot_cols) / plots_per_line))
@@ -94,6 +108,7 @@ def plot_boxplot_by_class(
         fig.delaxes(ax=ax)
 
     fig.tight_layout()
+    plt.close(fig)
 
     return fig
 
@@ -128,5 +143,7 @@ def plot_correlation_matrix(
         )
         plt.grid(False)
         plt.xticks(rotation=45, ha="right")
+
+    plt.close(fig)
 
     return fig
