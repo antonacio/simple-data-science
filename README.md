@@ -7,7 +7,7 @@ This repository compiles simple and practical examples for common data science t
 2. Multiclass Classification
 3. Regression
 4. Clustering
-5. (WIP) Dimensionality Reduction
+5. Histogram Analysis
 
 ## Setup
 
