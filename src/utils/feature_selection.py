@@ -7,7 +7,6 @@ from statsmodels.stats.outliers_influence import variance_inflation_factor
 from sklearn.metrics import root_mean_squared_error, f1_score
 from sklearn.linear_model import Lasso
 from sklearn.svm import LinearSVC
-from sklearn.preprocessing import StandardScaler
 from sklearn.model_selection import train_test_split
 
 logger = logging.getLogger(__name__)
@@ -20,7 +19,7 @@ def _remove_features_with_l1_regularization(
 ) -> list[str]:
 
     # carregar parametros
-    problem = l1_params["problem"]
+    problem_type = l1_params["problem_type"]
     train_test_split_params = l1_params["train_test_split_params"]
     logspace_search = l1_params["logspace_search"]
     error_tolerance_pct = l1_params["error_tolerance_pct"]
@@ -35,49 +34,39 @@ def _remove_features_with_l1_regularization(
         random_state=random_seed,
     )
 
-    # Standardize X_train
-    stdscaler = StandardScaler()
-    X_train_std = pd.DataFrame(
-        stdscaler.fit_transform(X_train), columns=X.columns, index=X_train.index
-    )
-    X_test_std = pd.DataFrame(stdscaler.transform(X_test), columns=X.columns, index=X_test.index)
-
     # define search space
     logspace_values = np.logspace(**logspace_search)
     coef_lst = []
     metrics_dict = dict()
 
     # define L1-based linear model ad its evaluation metric
-    match problem.lower().strip():
+    match problem_type.lower().strip():
         case "classification":
             LinearModel = LinearSVC
             model_params = dict(penalty="l1")
             search_arg = "C"
             eval_metric_fn = f1_score
-            eval_metric_params = dict(average="weighted")
             eval_metric_greater_is_better = True
         case "regression":
             LinearModel = Lasso
             model_params = dict()
             search_arg = "alpha"
             eval_metric_fn = root_mean_squared_error
-            eval_metric_params = dict()
             eval_metric_greater_is_better = False
         case _:
             raise ValueError(
-                "Argument 'problem' must be either 'classification' or 'regression'. "
-                f"Got {problem} instead."
+                "Argument 'problem_type' must be either 'classification' or 'regression'. "
+                f"Got {problem_type} instead."
             )
 
     for i, search_val in enumerate(logspace_values, start=1):
         # Fit model and make predictions
         model_params[search_arg] = search_val
         model = LinearModel(**model_params, random_state=random_seed)
-        model.fit(X_train_std, y_train)
-        y_pred = model.predict(X_test_std)
-        eval_metric = eval_metric_fn(y_test, y_pred, **eval_metric_params)
-
-        s_coef = pd.Series(data=np.mean(model.coef_, axis=0), index=model.feature_names_in_, name=i)
+        model.fit(X_train, y_train)
+        y_pred = model.predict(X_test)
+        eval_metric = eval_metric_fn(y_test, y_pred)
+        s_coef = pd.Series(data=model.coef_.flatten(), index=model.feature_names_in_, name=i)
         coef_lst.append(s_coef)
         metrics_dict[i] = dict(
             search_val=search_val, n_zero_coefs=len(s_coef[s_coef == 0]), eval_metric=eval_metric

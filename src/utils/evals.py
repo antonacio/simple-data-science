@@ -19,6 +19,12 @@ from sklearn.metrics import (
     recall_score,
     f1_score,
     confusion_matrix,
+    mean_absolute_error,
+    median_absolute_error,
+    mean_squared_error,
+    root_mean_squared_error,
+    max_error,
+    r2_score,
 )
 
 from .common import convert_to_integer
@@ -213,15 +219,29 @@ def compute_multiclass_classification_metrics(
     return metrics_dict
 
 
-def _compute_logit_stderror_pvalues(
+def compute_regression_metrics(y_true: pd.Series, y_pred: pd.Series) -> dict[str, float]:
+    metrics_dict = dict()
+
+    metrics_dict["Mean Absolute Error"] = mean_absolute_error(y_true=y_true, y_pred=y_pred)
+    metrics_dict["Median Absolute Error"] = median_absolute_error(y_true=y_true, y_pred=y_pred)
+    metrics_dict["Mean Squared Error"] = mean_squared_error(y_true=y_true, y_pred=y_pred)
+    metrics_dict["Root Mean Squared Error"] = root_mean_squared_error(y_true=y_true, y_pred=y_pred)
+    metrics_dict["Maximum Residual Error"] = max_error(y_true=y_true, y_pred=y_pred)
+    metrics_dict["R-squared (Coefficient of Determination)"] = r2_score(
+        y_true=y_true, y_pred=y_pred
+    )
+
+    return metrics_dict
+
+
+def _compute_classifier_stderror_pvalues(
     coefficients: np.ndarray,
     intercept: float,
     X_train: pd.DataFrame,
     y_pred_proba_train: pd.Series,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Calculate z-scores for a Logistic Regression and returns the
-    standard errors and p-values for each of the model's coefficients.
-    Uses asymtotic approximation for maximum likelihood estimates.
+    """Computes standard errors and p-values for the coefficients of a
+    binary classifier logistic regression model.
 
     Source: https://stackoverflow.com/a/47079198
     """
@@ -235,27 +255,73 @@ def _compute_logit_stderror_pvalues(
     for i in range(n):
         ans = ans + np.dot(np.transpose(x_full[i, :]), x_full[i, :]) * p[i, 1] * p[i, 0]
     vcov = np.linalg.inv(np.matrix(ans))
-    se = np.sqrt(np.diag(vcov))
-    t = coefs / se
+    stderr = np.sqrt(np.diag(vcov))
+    t = coefs / stderr
     p_values = (1 - scipy.stats.norm.cdf(abs(t))) * 2
 
-    return se[1:], p_values[1:]  # [1:] to skip the added constant
+    return stderr[1:], p_values[1:]  # [1:] to skip the intercept
 
 
-def build_logit_coefficients_table(
+def _compute_regression_stderror_pvalues(
+    coefficients: np.ndarray,
+    intercept: float,
+    y_pred_train: pd.Series,
+    y_train: pd.Series,
+    X_train: pd.DataFrame,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Computes standard errors and p-values for the coefficients of a
+    linear regression model.
+
+    Source: https://stackoverflow.com/a/42677750
+    """
+    params = np.append(intercept, coefficients)
+
+    x_full = np.append(np.ones((len(X_train), 1)), X_train, axis=1)
+    mse = (np.sum((y_train - y_pred_train) ** 2)) / (len(x_full) - len(x_full[0]))
+
+    vcov = mse * (np.linalg.inv(np.dot(x_full.T, x_full)).diagonal())
+    stderr = np.sqrt(vcov)
+    t_values = params / stderr
+
+    p_values = np.array(
+        [2 * (1 - scipy.stats.t.cdf(np.abs(i), (len(x_full) - len(x_full[0])))) for i in t_values]
+    )
+
+    return stderr[1:], p_values[1:]  # [1:] to skip the intercept
+
+
+def build_coefficients_table(
     coefficients: np.ndarray,
     intercept: float,
     X_train: pd.DataFrame,
-    y_pred_proba_train: pd.Series,
+    y_pred_train: pd.Series,
+    y_train: pd.Series,
+    problem_type: str,
 ) -> pd.DataFrame:
 
     # compute coefficients' Standard Error and p-values
-    stderr, pvalues = _compute_logit_stderror_pvalues(
-        coefficients=coefficients,
-        intercept=intercept,
-        X_train=X_train,
-        y_pred_proba_train=y_pred_proba_train,
-    )
+    match problem_type.lower().strip():
+        case "classification":
+            stderr, pvalues = _compute_classifier_stderror_pvalues(
+                coefficients=coefficients,
+                intercept=intercept,
+                X_train=X_train,
+                y_pred_proba_train=y_pred_train,
+            )
+        case "regression":
+            stderr, pvalues = _compute_regression_stderror_pvalues(
+                coefficients=coefficients,
+                intercept=intercept,
+                X_train=X_train,
+                y_pred_train=y_pred_train,
+                y_train=y_train,
+            )
+        case _:
+            raise ValueError(
+                "Argument 'problem_type' must be either 'classification' or 'regression'. "
+                f"Got {problem_type} instead."
+            )
+
     df_coef = pd.DataFrame(
         data={
             "Coefficients": coefficients,
