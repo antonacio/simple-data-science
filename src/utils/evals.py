@@ -245,7 +245,7 @@ def _compute_classifier_stderror_pvalues(
 
     Source: https://stackoverflow.com/a/47079198
     """
-    p = np.vstack([y_pred_proba_train.values, (1 - y_pred_proba_train.values)]).T
+    p = np.vstack([(1 - y_pred_proba_train.values), y_pred_proba_train.values]).T
     n = len(p)
     m = len(coefficients) + 1
     coefs = np.concatenate([[intercept], coefficients])
@@ -259,7 +259,7 @@ def _compute_classifier_stderror_pvalues(
     t = coefs / stderr
     p_values = (1 - scipy.stats.norm.cdf(abs(t))) * 2
 
-    return stderr[1:], p_values[1:]  # [1:] to skip the intercept
+    return stderr, p_values
 
 
 def _compute_regression_stderror_pvalues(
@@ -287,7 +287,7 @@ def _compute_regression_stderror_pvalues(
         [2 * (1 - scipy.stats.t.cdf(np.abs(i), (len(x_full) - len(x_full[0])))) for i in t_values]
     )
 
-    return stderr[1:], p_values[1:]  # [1:] to skip the intercept
+    return stderr, p_values
 
 
 def build_coefficients_table(
@@ -302,14 +302,14 @@ def build_coefficients_table(
     # compute coefficients' Standard Error and p-values
     match problem_type.lower().strip():
         case "classification":
-            stderr, pvalues = _compute_classifier_stderror_pvalues(
+            stderr, p_values = _compute_classifier_stderror_pvalues(
                 coefficients=coefficients,
                 intercept=intercept,
                 X_train=X_train,
                 y_pred_proba_train=y_pred_train,
             )
         case "regression":
-            stderr, pvalues = _compute_regression_stderror_pvalues(
+            stderr, p_values = _compute_regression_stderror_pvalues(
                 coefficients=coefficients,
                 intercept=intercept,
                 X_train=X_train,
@@ -322,13 +322,15 @@ def build_coefficients_table(
                 f"Got {problem_type} instead."
             )
 
+    # skip the first value as it corresponds to the intercept and thus is not a coefficient
+    stderr, p_values = stderr[1:], p_values[1:]
     df_coef = pd.DataFrame(
         data={
             "Coefficients": coefficients,
             "Absolute Coefficients": np.abs(coefficients),
             "Standard Error": stderr,
             "95% CI": stderr * 1.96,
-            "p-values": pvalues,
+            "p-values": p_values,
         },
         index=X_train.columns.tolist(),
     ).sort_values(by="Absolute Coefficients", ascending=False)

@@ -22,7 +22,9 @@ def search_kmeans(df_cl: pd.DataFrame, max_n_clusters: int) -> pd.DataFrame:
         kmeans_dict["wcss"] = kmeans_model.inertia_
         if i > 1:
             # save silhouette score
-            kmeans_dict["silhouette_score"] = silhouette_score(df_cl, kmeans_model.labels_)
+            kmeans_dict["silhouette_score"] = silhouette_score(
+                df_cl, kmeans_model.labels_, random_state=RANDOM_SEED
+            )
 
         kmeans_search_lst.append(kmeans_dict)
 
