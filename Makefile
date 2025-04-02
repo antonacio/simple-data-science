@@ -4,6 +4,7 @@ setup:
 	make create-venv
 	make activate-venv
 	make sync-requirements
+	make install-pre-commit
 
 uninstall:
 	@echo "Uninstalling the project..."
@@ -29,6 +30,10 @@ delete-venv:
 sync-requirements:
 	@echo "Syncing requirements..."
 	uv sync
+
+install-pre-commit:
+	@echo "Installing pre-commit..."
+	pre-commit install
 
 checks:
 	@echo "Running checks..."

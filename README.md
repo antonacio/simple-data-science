@@ -11,15 +11,8 @@ This project compiles simple and practical examples for common Data Science use 
 
 ## Setup
 
-### Pre Commit
+To set up the environment and install the requirements, run:
 
 ```bash
-pip install pre-commit
-pre-commit install
-```
-
-or
-
-```bash
-make install-pre-commit
+make setup
 ```
