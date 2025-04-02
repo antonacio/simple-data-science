@@ -2,10 +2,10 @@ import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import matplotlib as mpl
+import matplotlib_inline
 from matplotlib import pyplot as plt
 from matplotlib import ticker as mticker
-from .constants import REPO_NAME, SMALL_FONTSIZE, MEDIUM_FONTSIZE, BIG_FONTSIZE, FIGURE_DPI
+from .constants import REPO_NAME, SMALL_FONTSIZE, MEDIUM_FONTSIZE, BIG_FONTSIZE
 
 
 def get_repo_root_path() -> str:
@@ -32,13 +32,13 @@ def _set_plot_font_sizes() -> None:
     plt.rc("ytick", labelsize=SMALL_FONTSIZE)  # y tick labels
 
 
-def _set_figure_dpi() -> None:
-    mpl.rcParams["figure.dpi"] = FIGURE_DPI
+def _set_figure_format() -> None:
+    matplotlib_inline.backend_inline.set_matplotlib_formats('retina')
 
 
 def set_plotting_config() -> None:
     _set_plot_font_sizes()
-    _set_figure_dpi()
+    _set_figure_format()
 
 
 def plot_boxplot_by_class(
