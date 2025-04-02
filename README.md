@@ -4,7 +4,7 @@
 
 This project compiles simple and practical examples for common Data Science use cases with tabular data.
 
-You can access the
+You can access complete examples using the following links:
 1. Binary Classification
 2. Multiclass Classification
 3. Regression
@@ -12,8 +12,6 @@ You can access the
 5. Histogram Analysis
 
 ## Setup
-
-To set up the environment and install the requirements, run the following command in your terminal:
 
 ```bash
 make setup
@@ -24,7 +22,7 @@ or run the following commands sequentially:
 ```bash
 pip install --upgrade uv
 uv venv --python 3.12
-. .venv/bin/activate
+source .venv/bin/activate
 uv sync
 pre-commit install
 ```
