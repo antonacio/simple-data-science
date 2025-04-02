@@ -13,18 +13,15 @@ You can access complete examples using the following links:
 
 ## Setup
 
-```bash
-make setup
-```
-
-or run the following commands sequentially:
+To set up the environment and install the required dependencies, run the following commands in your terminal:
 
 ```bash
-pip install --upgrade uv
-uv venv --python 3.12
-source .venv/bin/activate
-uv sync
-pre-commit install
+conda create -n simple-ds -c conda-forge python=3.12 -y  # create environment
+conda activate simple-ds                                 # activate environment
+conda install uv -y                                      # install uv package manager
+uv pip install -r pyproject.toml                         # install requirements with uv
+conda install jupyter_contrib_nbextensions -y            # install notebook extensions
+pre-commit install                                       # install pre-commit hooks
 ```
 
 ## Data

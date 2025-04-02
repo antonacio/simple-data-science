@@ -16,7 +16,7 @@ dependencies = [
     "shap>=0.47.1",
     "statsmodels>=0.14.4",
     "tqdm>=4.67.1",
-    "xgboost>=3.0.0",
+    "xgboost~=2.1.4",
 ]
 
 [tool.ruff]
