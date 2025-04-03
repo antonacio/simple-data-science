@@ -2,7 +2,6 @@ import pandas as pd
 import seaborn as sns
 import matplotlib.pyplot as plt
 
-from tqdm import tqdm
 from sklearn.cluster import KMeans
 from sklearn.metrics import silhouette_score
 
@@ -13,7 +12,7 @@ def search_kmeans(df_cl: pd.DataFrame, max_n_clusters: int) -> pd.DataFrame:
 
     kmeans_search_lst = []
 
-    for i in tqdm(range(1, max_n_clusters + 1)):
+    for i in range(1, max_n_clusters + 1):
         kmeans_dict = dict()
         kmeans_dict["n_clusters"] = i
         kmeans_model = KMeans(n_clusters=i, verbose=0, random_state=RANDOM_SEED)

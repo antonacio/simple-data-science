@@ -2,10 +2,10 @@ import os
 import numpy as np
 import pandas as pd
 import seaborn as sns
-import matplotlib as mpl
+import matplotlib_inline
 from matplotlib import pyplot as plt
 from matplotlib import ticker as mticker
-from .constants import REPO_NAME, SMALL_FONTSIZE, MEDIUM_FONTSIZE, BIG_FONTSIZE, FIGURE_DPI
+from .constants import REPO_NAME, SMALL_FONTSIZE, MEDIUM_FONTSIZE, BIG_FONTSIZE
 
 
 def get_repo_root_path() -> str:
@@ -22,23 +22,25 @@ def convert_to_integer(s: pd.Series) -> pd.Series:
     return pd.to_numeric(s, downcast="integer", errors="raise")
 
 
-def _set_plot_font_sizes() -> None:
-    plt.rc("font", size=SMALL_FONTSIZE)  # default font size
+def set_plotting_config() -> None:
+    # set font sizes
+    plt.rc(
+        "font",
+        size=SMALL_FONTSIZE,  # default font size
+        family="sans-serif",  # font family
+        **{"sans-serif": ["Arial"]},  # font name
+    )
     plt.rc("figure", titlesize=BIG_FONTSIZE)  # figure title
     plt.rc("legend", fontsize=SMALL_FONTSIZE)  # legend
-    plt.rc("axes", titlesize=MEDIUM_FONTSIZE)  # axes title
-    plt.rc("axes", labelsize=SMALL_FONTSIZE)  # axes labels
+    plt.rc("axes", titlesize=MEDIUM_FONTSIZE, labelsize=SMALL_FONTSIZE)  # axes title and labels
     plt.rc("xtick", labelsize=SMALL_FONTSIZE)  # x tick labels
     plt.rc("ytick", labelsize=SMALL_FONTSIZE)  # y tick labels
 
+    # set figure resolution
+    matplotlib_inline.backend_inline.set_matplotlib_formats("retina")
 
-def _set_figure_dpi() -> None:
-    mpl.rcParams["figure.dpi"] = FIGURE_DPI
-
-
-def set_plotting_config() -> None:
-    _set_plot_font_sizes()
-    _set_figure_dpi()
+    # set log level
+    plt.set_loglevel("warning")
 
 
 def plot_boxplot_by_class(
