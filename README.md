@@ -5,11 +5,11 @@
 This project compiles simple and practical examples for common Data Science use cases with tabular data.
 
 You can access complete examples using the following links:
-1. Binary Classification
-2. Multiclass Classification
-3. Regression
-4. Clustering
-5. Histogram Analysis
+1. [Binary Classification](https://antonacio.github.io/simple-data-science/classification-binary.html)
+2. [Multiclass Classification](https://antonacio.github.io/simple-data-science/classification-multiclass.html)
+3. [Regression](https://antonacio.github.io/simple-data-science/regression.html)
+4. [Clustering](https://antonacio.github.io/simple-data-science/clustering.html)
+5. [Histogram Analysis](https://antonacio.github.io/simple-data-science/histogram_analysis.html)
 
 ## Setup
 

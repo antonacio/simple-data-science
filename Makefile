@@ -8,8 +8,8 @@ unzip-datasets:
 	unzip -j data/fetal_health.csv.zip -d data/
 
 convert-notebooks-to-html:
-	rm -rf examples/*.html
+	rm -rf docs/*.html
 	@for nb in src/*.ipynb; do \
 		echo "Converting $$nb to HTML..."; \
-		WARNING_FILTER_POLICY=ignore jupyter nbconvert --to html --execute "$$nb" --output-dir=examples/ --ExtractOutputPreprocessor.enabled=False; \
+		WARNING_FILTER_POLICY=ignore jupyter nbconvert --to html --execute "$$nb" --output-dir=docs/ --ExtractOutputPreprocessor.enabled=False; \
 	done
