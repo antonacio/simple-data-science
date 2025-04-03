@@ -1783,7 +1783,6 @@ dependencies = [
     { name = "seaborn" },
     { name = "shap" },
     { name = "statsmodels" },
-    { name = "tqdm" },
     { name = "xgboost" },
 ]
 
@@ -1799,7 +1798,6 @@ requires-dist = [
     { name = "seaborn", specifier = ">=0.13.2" },
     { name = "shap", specifier = ">=0.47.1" },
     { name = "statsmodels", specifier = ">=0.14.4" },
-    { name = "tqdm", specifier = ">=4.67.1" },
     { name = "xgboost", specifier = "~=2.1.4" },
 ]
 

@@ -13,15 +13,22 @@ You can access complete examples using the following links:
 
 ## Setup
 
+In this repository, we use UV—a handy Python package and project manager. To install UV, follow [these instructions](https://docs.astral.sh/uv/getting-started/installation/).
+
 To set up the environment and install the required dependencies, run the following commands in your terminal:
 
 ```bash
-conda create -n simple-ds -c conda-forge python=3.12 -y  # create environment
-conda activate simple-ds                                 # activate environment
-conda install uv -y                                      # install uv package manager
-uv pip install -r pyproject.toml                         # install requirements with uv
-conda install jupyter_contrib_nbextensions -y            # install notebook extensions
-pre-commit install                                       # install pre-commit hooks
+cd simple-data-science     # change to the project's directory
+uv venv --python 3.12      # create virtual environment using UV
+source .venv/bin/activate  # activate virtual environment
+uv sync                    # synchronize dependencies
+```
+
+If you want to deactivate and delete the virtual environment, run:
+
+```bash
+deactivate                 # deactivate virtual environment
+rm -rf .venv               # delete virtual environment
 ```
 
 ## Data

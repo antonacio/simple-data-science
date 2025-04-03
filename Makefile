@@ -11,5 +11,5 @@ convert-notebooks-to-html:
 	rm -rf examples/*.html
 	@for nb in src/*.ipynb; do \
 		echo "Converting $$nb to HTML..."; \
-		jupyter nbconvert --to html --execute "$$nb" --output-dir=examples/ --ExtractOutputPreprocessor.enabled=False; \
+		WARNING_FILTER_POLICY=ignore jupyter nbconvert --to html --execute "$$nb" --output-dir=examples/ --ExtractOutputPreprocessor.enabled=False; \
 	done
