@@ -32,7 +32,8 @@ def set_plotting_config() -> None:
     )
     plt.rc("figure", titlesize=BIG_FONTSIZE)  # figure title
     plt.rc("legend", fontsize=SMALL_FONTSIZE)  # legend
-    plt.rc("axes", titlesize=MEDIUM_FONTSIZE, labelsize=SMALL_FONTSIZE)  # axes title and labels
+    # axes title and labels
+    plt.rc("axes", titlesize=MEDIUM_FONTSIZE, labelsize=SMALL_FONTSIZE)
     plt.rc("xtick", labelsize=SMALL_FONTSIZE)  # x tick labels
     plt.rc("ytick", labelsize=SMALL_FONTSIZE)  # y tick labels
 
