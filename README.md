@@ -22,6 +22,7 @@ cd simple-data-science     # change to the project's directory
 uv venv --python 3.12      # create virtual environment using UV
 source .venv/bin/activate  # activate virtual environment
 uv sync                    # synchronize dependencies
+pre-commit install         # install pre-commit hooks
 ```
 
 If you want to deactivate and delete the virtual environment, run:
