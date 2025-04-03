@@ -4,6 +4,9 @@ logs/**
 # except their sub-folders
 !data/**/
 !logs/**/
+# keep the (small) datasets used in the examples
+!data/expenses.csv.zip
+!data/fetal_health.csv.zip
 
 # also keep all .gitkeep files
 !.gitkeep
@@ -139,3 +142,6 @@ venv.bak/
 
 # mypy
 .mypy_cache/
+
+# VS Code
+.vscode/

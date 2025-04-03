@@ -1,9 +1,15 @@
-install-pre-commit:
-	pip install pre-commit && \
-	pre-commit install
-
-lint:
+checks:
+	@echo "Running checks..."
 	pre-commit run -a
 
-test:
-	python -m pytest
+unzip-datasets:
+	@echo "Unzipping datasets..."
+	unzip -j data/expenses.csv.zip -d data/
+	unzip -j data/fetal_health.csv.zip -d data/
+
+convert-notebooks-to-html:
+	rm -rf docs/*.html
+	@for nb in src/*.ipynb; do \
+		echo "Converting $$nb to HTML..."; \
+		WARNING_FILTER_POLICY=ignore jupyter nbconvert --to html --execute "$$nb" --output-dir=docs/ --ExtractOutputPreprocessor.enabled=False; \
+	done
