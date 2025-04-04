@@ -44,6 +44,8 @@ Because the datasets are small, they are available as `.zip` files in the reposi
 
 The code for the data science use cases described above is located in the `src/` directory. To run a use case, open the corresponding notebook file, select your preconfigured virtual environment, and execute the cells. Have fun!
 
+To update the HTML files with the latest notebook outputs, run the command `make convert-notebooks-to-html` in your terminal.
+
 ### Contributions
 
 We welcome contributions of all kinds. Whether you have questions, spot a bug, or want to enhance the code, documentation, or tests, please feel free to start a discussion or open a pull request. Your feedback, ideas, and fixes are vital in making this project better for everyone!
