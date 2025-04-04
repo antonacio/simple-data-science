@@ -375,6 +375,7 @@ def plot_coefficients_values(
 
     ax.xaxis.grid(True)
     ax.set_axisbelow(True)
+    ax.set_xlabel("Coefficient value")
     legend_patches = [
         mpatches.Patch(color=colors_dict["Positive"], label="Positive coefficient"),
         mpatches.Patch(color=colors_dict["Negative"], label="Negative coefficient"),
@@ -390,11 +391,11 @@ def plot_coefficients_significance(
     df_coef: pd.DataFrame,
     alpha: float = 0.05,
     log_scale: bool = False,
-    title: str = "Coefficients' Significance",
+    title: str = "Coefficients' Significance (p-values)",
 ) -> plt.Figure:
 
     fig, ax = plt.subplots(nrows=1, ncols=1)
-    fig.suptitle(title + f" ({100*(1 - alpha):.0f}% Confidence Level)")
+    fig.suptitle(title)
 
     colors_dict = {"fail": "orange", "pass": "limegreen", "threshold": "crimson"}
     df_plot = df_coef.sort_values(by="Absolute Coefficients", ascending=True)
@@ -420,11 +421,12 @@ def plot_coefficients_significance(
         ls="--",
         lw=2,
         alpha=0.75,
-        label=f"{100*(1 - alpha):.0f}% Confidence Level",
+        label=f"{100*(1 - alpha):.0f}% Confidence level line (p-value = {alpha:.2f})",
     )
 
     ax.xaxis.grid(True)
     ax.set_axisbelow(True)
+    ax.set_xlabel("Coefficient p-value" + (" (log scale)" if log_scale else ""))
     legend_patches = [
         ax.get_legend_handles_labels()[0][0],  # confidence level line
         mpatches.Patch(
@@ -434,7 +436,7 @@ def plot_coefficients_significance(
             color=colors_dict["fail"], label="Coefficient value is not statistically significant"
         ),
     ]
-    plt.legend(handles=legend_patches, framealpha=0.75)
+    plt.legend(handles=legend_patches, framealpha=0.9)
     plt.close(fig)
 
     return fig

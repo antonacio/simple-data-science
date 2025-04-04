@@ -1,6 +1,6 @@
 [project]
 name = "simple-data-science"
-version = "0.1.0"
+version = "0.1.1"
 description = "Simple examples for common Data Science use cases with tabular data"
 readme = "README.md"
 requires-python = ">=3.12"
